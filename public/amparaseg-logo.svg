@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 190" role="img" aria-labelledby="title">
+  <title id="title">AmparaSeg Corretora de Seguros - Seguro que acolhe</title>
+  <path fill="#0D5260" d="M82 7c-24 7-49 11-72 19v69c0 40 28 69 72 88 44-19 72-48 72-88V26C131 18 106 14 82 7Z"/>
+  <path fill="#67AAA9" d="M82 121c-13-12-39-31-39-52 0-17 20-25 39-5 19-20 39-12 39 5 0 21-26 40-39 52Z"/>
+  <text x="171" y="79" fill="#0D5260" font-family="Arial, Helvetica, sans-serif" font-size="61" font-weight="700">AmparaSeg</text>
+  <text x="176" y="122" fill="#164F58" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="600">Corretora de Seguros</text>
+  <path d="M174 135h405" stroke="#B5C9C7" stroke-width="2"/>
+  <text x="211" y="169" fill="#67AAA9" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="500">Seguro que acolhe</text>
+</svg>
