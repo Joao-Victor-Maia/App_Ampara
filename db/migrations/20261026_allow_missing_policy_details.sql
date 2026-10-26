@@ -1,0 +1,4 @@
+ALTER TABLE policies
+  ALTER COLUMN policy_number DROP NOT NULL,
+  ALTER COLUMN insurer DROP NOT NULL,
+  ALTER COLUMN coverage DROP NOT NULL;

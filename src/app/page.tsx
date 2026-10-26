@@ -43,11 +43,11 @@ type Client = {
 type Policy = {
   id: string;
   clientId: string;
-  number: string;
-  insurer: string;
-  type: string;
-  premium: number;
-  startDate: string;
+  number: string | null;
+  insurer: string | null;
+  type: string | null;
+  premium: number | null;
+  startDate: string | null;
   endDate: string;
   notes: string;
   pdfName?: string | null;
@@ -112,7 +112,7 @@ const nextBirthday = (date: string | null) => {
   return next;
 };
 const daysUntil = (date: Date) => Math.ceil((new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86_400_000);
-const kindIcon = (type: string, size = 17) => {
+const kindIcon = (type: string | null, size = 17) => {
   if (type === "Automóvel") return <CarFront size={size} />;
   if (type === "Residencial") return <House size={size} />;
   if (type === "Vida") return <Heart size={size} />;
@@ -213,11 +213,12 @@ export default function Home() {
   const filteredClients = clients.filter((client) => `${client.name} ${client.email} ${client.phone} ${client.company}`.toLowerCase().includes(query.toLowerCase()));
   const filteredPolicies = policies.filter((policy) => {
     const client = clientById.get(policy.clientId);
-    return `${policy.number} ${policy.insurer} ${policy.type} ${client?.name ?? ""}`.toLowerCase().includes(query.toLowerCase());
+    return `${policy.number ?? ""} ${policy.insurer ?? ""} ${policy.type ?? ""} ${client?.name ?? ""}`.toLowerCase().includes(query.toLowerCase());
   });
   const activePolicies = policies.filter((policy) => daysUntil(new Date(`${policy.endDate}T12:00:00`)) >= 0);
   const renewalCount = upcomingPolicies.filter((policy) => daysUntil(new Date(`${policy.endDate}T12:00:00`)) <= 30).length;
-  const premiumTotal = activePolicies.reduce((total, policy) => total + policy.premium, 0);
+  const premiumTotal = activePolicies.reduce((total, policy) => total + (policy.premium ?? 0), 0);
+  const missingPremiumCount = activePolicies.filter((policy) => policy.premium === null).length;
 
   async function saveClient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -254,19 +255,19 @@ export default function Home() {
       window.alert("Selecione um PDF de até 4 MB.");
       return;
     }
-    const startDate = String(data.get("startDate"));
+    const startDate = String(data.get("startDate")) || null;
     const endDate = String(data.get("endDate"));
-    if (endDate < startDate) {
+    if (startDate && endDate < startDate) {
       window.alert("O fim da vigência precisa ser igual ou posterior ao início.");
       return;
     }
     const policy: Policy = {
       id: modal.item?.id ?? crypto.randomUUID(),
       clientId: String(data.get("clientId")),
-      number: String(data.get("number")).trim(),
-      insurer: String(data.get("insurer")).trim(),
-      type: String(data.get("type")),
-      premium: Number(data.get("premium")),
+      number: String(data.get("number")).trim() || null,
+      insurer: String(data.get("insurer")).trim() || null,
+      type: String(data.get("type")) || null,
+      premium: String(data.get("premium")).trim() ? Number(data.get("premium")) : null,
       startDate,
       endDate,
       notes: String(data.get("notes")).trim(),
@@ -305,7 +306,7 @@ export default function Home() {
   }
 
   async function removePolicy(policy: Policy) {
-    if (!window.confirm(`Excluir a apólice ${policy.number}?`)) return;
+    if (!window.confirm(`Excluir a apólice ${policy.number || "sem número informado"}?`)) return;
     if (cloudAuthConfigured && !cloudReady) return window.alert("O banco de dados ainda não está disponível. Nenhum dado foi excluído.");
     if (cloudReady && !await saveToCloud(`/api/policies?id=${encodeURIComponent(policy.id)}`, "DELETE")) return;
     setPolicies((current) => current.filter((item) => item.id !== policy.id));
@@ -366,7 +367,7 @@ export default function Home() {
 
         <div className="page-content">
           <div className={`demo-notice${cloudReady ? " cloud-notice" : ""}`}><span className="demo-dot" />{cloudReady ? "Banco Neon conectado" : cloudError ? "Banco de dados indisponível" : "Modo demonstração"} <span className="notice-divider">·</span> {cloudReady ? "dados sincronizados com segurança" : cloudError ? "configure Neon e Clerk para continuar" : "alterações salvas neste navegador"}</div>
-          {section === "inicio" && <Dashboard firstName={greetingName} clients={clients} policies={policies} clientById={clientById} upcomingPolicies={upcomingPolicies} upcomingBirthdays={upcomingBirthdays} activePolicies={activePolicies.length} renewalCount={renewalCount} premiumTotal={premiumTotal} onSection={setSection} onNewPolicy={() => setModal({ kind: "policy" })} onNewClient={() => setModal({ kind: "client" })} />}
+          {section === "inicio" && <Dashboard firstName={greetingName} clients={clients} policies={policies} clientById={clientById} upcomingPolicies={upcomingPolicies} upcomingBirthdays={upcomingBirthdays} activePolicies={activePolicies.length} renewalCount={renewalCount} premiumTotal={premiumTotal} missingPremiumCount={missingPremiumCount} onSection={setSection} onNewPolicy={() => setModal({ kind: "policy" })} onNewClient={() => setModal({ kind: "client" })} />}
           {section === "clientes" && <ClientsPage clients={filteredClients} policies={policies} query={query} onNew={() => setModal({ kind: "client" })} onEdit={(client) => setModal({ kind: "client", item: client })} onDelete={removeClient} />}
           {section === "apolices" && <PoliciesPage policies={filteredPolicies} clientById={clientById} query={query} onNew={() => setModal({ kind: "policy" })} onEdit={(policy) => setModal({ kind: "policy", item: policy })} onDelete={removePolicy} />}
           {section === "vigencias" && <RenewalsPage policies={upcomingPolicies} clientById={clientById} onEdit={(policy) => setModal({ kind: "policy", item: policy })} />}
@@ -409,11 +410,11 @@ async function uploadPdfToCloud(policyId: string, file: File) {
   }
 }
 
-function Dashboard({ firstName, clients, policies, clientById, upcomingPolicies, upcomingBirthdays, activePolicies, renewalCount, premiumTotal, onSection, onNewPolicy, onNewClient }: {
+function Dashboard({ firstName, clients, policies, clientById, upcomingPolicies, upcomingBirthdays, activePolicies, renewalCount, premiumTotal, missingPremiumCount, onSection, onNewPolicy, onNewClient }: {
   firstName: string;
   clients: Client[]; policies: Policy[]; clientById: Map<string, Client>; upcomingPolicies: Policy[];
   upcomingBirthdays: { client: Client; date: Date }[]; activePolicies: number; renewalCount: number;
-  premiumTotal: number; onSection: (section: Section) => void; onNewPolicy: () => void; onNewClient: () => void;
+  premiumTotal: number; missingPremiumCount: number; onSection: (section: Section) => void; onNewPolicy: () => void; onNewClient: () => void;
 }) {
   const greeting = today.getHours() < 12 ? "Bom dia" : today.getHours() < 18 ? "Boa tarde" : "Boa noite";
   const dateText = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(today);
@@ -427,7 +428,7 @@ function Dashboard({ firstName, clients, policies, clientById, upcomingPolicies,
       <Metric icon={UsersRound} label="Clientes ativos" value={String(clients.length).padStart(2, "0")} note="na sua carteira" accent="green" />
       <Metric icon={ShieldCheck} label="Apólices vigentes" value={String(activePolicies).padStart(2, "0")} note={`${renewalCount} vencem nos próximos 30 dias`} accent="blue" />
       <Metric icon={Clock3} label="Renovações próximas" value={String(renewalCount).padStart(2, "0")} note="próximos 30 dias" accent="amber" />
-      <Metric icon={BriefcaseBusiness} label="Prêmios na carteira" value={money(premiumTotal)} note="valor anual contratado" accent="coral" />
+      <Metric icon={BriefcaseBusiness} label="Prêmios informados" value={money(premiumTotal)} note={missingPremiumCount ? `${missingPremiumCount} sem valor informado` : "valores cadastrados"} accent="coral" />
     </section>
 
     <div className="dashboard-columns">
@@ -436,7 +437,7 @@ function Dashboard({ firstName, clients, policies, clientById, upcomingPolicies,
         {soon.length ? <div className="renewal-list">{soon.map((policy) => {
           const client = clientById.get(policy.clientId);
           const remaining = daysUntil(new Date(`${policy.endDate}T12:00:00`));
-          return <button className="renewal-row" key={policy.id} onClick={() => onSection("vigencias")}><span className="policy-type-icon">{kindIcon(policy.type)}</span><span className="renewal-copy"><strong>{client?.name ?? "Cliente removido"}</strong><small>{policy.type} <span>·</span> {policy.insurer}</small></span><span className={`renewal-date${remaining <= 7 ? " renewal-date-urgent" : ""}`}><strong>{remaining === 0 ? "Hoje" : `${remaining} dias`}</strong><small>{dateLabel(policy.endDate)}</small></span><ArrowUpRight className="row-arrow" size={16} /></button>;
+          return <button className="renewal-row" key={policy.id} onClick={() => onSection("vigencias")}><span className="policy-type-icon">{kindIcon(policy.type)}</span><span className="renewal-copy"><strong>{client?.name ?? "Cliente removido"}</strong><small>{policy.type || "Tipo não informado"} <span>·</span> {policy.insurer || "Seguradora não informada"}</small></span><span className={`renewal-date${remaining <= 7 ? " renewal-date-urgent" : ""}`}><strong>{remaining === 0 ? "Hoje" : `${remaining} dias`}</strong><small>{dateLabel(policy.endDate)}</small></span><ArrowUpRight className="row-arrow" size={16} /></button>;
         })}</div> : <EmptyState text="Nenhuma vigência próxima. Sua carteira está em dia." />}
         <button className="panel-footer-link" onClick={() => onSection("vigencias")}>Acessar calendário de renovações <ArrowRight size={14} /></button>
       </section>
@@ -486,9 +487,10 @@ function PoliciesPage({ policies, clientById, query, onNew, onEdit, onDelete }: 
 }
 
 function PolicyTable({ policies, clientById, compact = false, onEdit, onDelete }: { policies: Policy[]; clientById: Map<string, Client>; compact?: boolean; onEdit?: (policy: Policy) => void; onDelete?: (policy: Policy) => void }) {
-  return <div className="table-scroll"><table><thead><tr><th>APÓLICE</th><th>CLIENTE</th><th>VIGÊNCIA</th><th>PRÊMIO ANUAL</th><th>STATUS</th>{!compact && <th></th>}</tr></thead><tbody>{policies.map((policy) => {
+  return <div className="table-scroll"><table><thead><tr><th>APÓLICE</th><th>CLIENTE</th><th>VIGÊNCIA</th><th>PRÊMIO TOTAL</th><th>STATUS</th>{!compact && <th></th>}</tr></thead><tbody>{policies.map((policy) => {
     const client = clientById.get(policy.clientId);
-    return <tr key={policy.id}><td><div className="policy-cell"><span className="policy-type-icon">{kindIcon(policy.type, 16)}</span><span><strong>{policy.type}</strong><small>{policy.number} · {policy.insurer}</small>{policy.pdfName && <a className="pdf-link" href={`/api/policies/${encodeURIComponent(policy.id)}/pdf`} target="_blank" rel="noreferrer"><Paperclip size={11} />{policy.pdfName}</a>}{policy.notes && <span className="note-indicator"><span />Com observação</span>}</span></div></td><td><div className="client-cell"><Avatar name={client?.name ?? "Cliente removido"} small /><span><strong>{client?.name ?? "Cliente removido"}</strong><small>{client?.company || client?.email || ""}</small></span></div></td><td><span>{dateLabel(policy.startDate)} – {dateLabel(policy.endDate, { day: "2-digit", month: "short", year: "numeric" })}</span><small className="table-subline">{policy.notes || "Sem observações"}</small></td><td><strong>{money(policy.premium)}</strong></td><td><Status endDate={policy.endDate} /></td>{!compact && <td><div className="row-actions"><button className="icon-button" onClick={() => onEdit?.(policy)} aria-label={`Editar ${policy.number}`}><Pencil size={15} /></button><button className="icon-button danger-action" onClick={() => onDelete?.(policy)} aria-label={`Excluir ${policy.number}`}><Trash2 size={15} /></button></div></td>}</tr>;
+    const policyLabel = policy.number || "Número não informado";
+    return <tr key={policy.id}><td><div className="policy-cell"><span className="policy-type-icon">{kindIcon(policy.type, 16)}</span><span><strong>{policy.type || "Tipo não informado"}</strong><small>{policyLabel} · {policy.insurer || "Seguradora não informada"}</small>{policy.pdfName && <a className="pdf-link" href={`/api/policies/${encodeURIComponent(policy.id)}/pdf`} target="_blank" rel="noreferrer"><Paperclip size={11} />{policy.pdfName}</a>}{policy.notes && <span className="note-indicator"><span />Com observação</span>}</span></div></td><td><div className="client-cell"><Avatar name={client?.name ?? "Cliente removido"} small /><span><strong>{client?.name ?? "Cliente removido"}</strong><small>{client?.company || client?.email || ""}</small></span></div></td><td><span>{policy.startDate ? `${dateLabel(policy.startDate)} – ` : ""}{dateLabel(policy.endDate, { day: "2-digit", month: "short", year: "numeric" })}</span><small className="table-subline">{policy.notes || "Sem observações"}</small></td><td><strong>{policy.premium === null ? "—" : money(policy.premium)}</strong></td><td><Status endDate={policy.endDate} /></td>{!compact && <td><div className="row-actions"><button className="icon-button" onClick={() => onEdit?.(policy)} aria-label={`Editar ${policyLabel}`}><Pencil size={15} /></button><button className="icon-button danger-action" onClick={() => onDelete?.(policy)} aria-label={`Excluir ${policyLabel}`}><Trash2 size={15} /></button></div></td>}</tr>;
   })}</tbody></table></div>;
 }
 
@@ -504,13 +506,13 @@ function RenewalsPage({ policies, clientById, onEdit }: { policies: Policy[]; cl
 
 function RenewalDetail({ policy, client, onEdit }: { policy: Policy; client?: Client; onEdit: () => void }) {
   const remaining = daysUntil(new Date(`${policy.endDate}T12:00:00`));
-  return <article className="renewal-detail-row"><span className="policy-type-icon">{kindIcon(policy.type, 18)}</span><span className="renewal-detail-copy"><strong>{client?.name ?? "Cliente removido"}</strong><small>{policy.type} · {policy.insurer} · apólice {policy.number}</small><span className="renewal-note">{policy.notes || "Nenhuma observação registrada."}</span></span><span className={`renewal-countdown${remaining <= 7 ? " renewal-date-urgent" : ""}`}><strong>{remaining === 0 ? "Hoje" : `${remaining} dias`}</strong><small>{dateLabel(policy.endDate, { day: "2-digit", month: "long", year: "numeric" })}</small></span><button className="button button-secondary button-small" onClick={onEdit}><Pencil size={14} /> Atualizar</button></article>;
+  return <article className="renewal-detail-row"><span className="policy-type-icon">{kindIcon(policy.type, 18)}</span><span className="renewal-detail-copy"><strong>{client?.name ?? "Cliente removido"}</strong><small>{policy.type || "Tipo não informado"} · {policy.insurer || "Seguradora não informada"} · apólice {policy.number || "não informada"}</small><span className="renewal-note">{policy.notes || "Nenhuma observação registrada."}</span></span><span className={`renewal-countdown${remaining <= 7 ? " renewal-date-urgent" : ""}`}><strong>{remaining === 0 ? "Hoje" : `${remaining} dias`}</strong><small>{dateLabel(policy.endDate, { day: "2-digit", month: "long", year: "numeric" })}</small></span><button className="button button-secondary button-small" onClick={onEdit}><Pencil size={14} /> Atualizar</button></article>;
 }
 
 function AgendaPage({ birthdays, policies, clientById, onEdit }: { birthdays: { client: Client; date: Date }[]; policies: Policy[]; clientById: Map<string, Client>; onEdit: (policy: Policy) => void }) {
   const events = [
     ...birthdays.map(({ client, date }) => ({ id: `b-${client.id}`, date, title: `Aniversário de ${client.name}`, detail: client.company || "Relacionamento", kind: "birthday" as const })),
-    ...policies.map((policy) => ({ id: `p-${policy.id}`, date: new Date(`${policy.endDate}T12:00:00`), title: `Renovação · ${policy.type}`, detail: `${clientById.get(policy.clientId)?.name ?? "Cliente removido"} · ${policy.insurer}`, kind: "renewal" as const, policy })),
+    ...policies.map((policy) => ({ id: `p-${policy.id}`, date: new Date(`${policy.endDate}T12:00:00`), title: `Renovação · ${policy.type || "apólice"}`, detail: `${clientById.get(policy.clientId)?.name ?? "Cliente removido"} · ${policy.insurer || "Seguradora não informada"}`, kind: "renewal" as const, policy })),
   ].filter((event) => daysUntil(event.date) >= 0).sort((a, b) => a.date.getTime() - b.date.getTime());
   return <>
     <section className="page-heading"><div><span className="section-kicker">PRÓXIMOS COMPROMISSOS</span><h1>Agenda</h1><p>Aniversários e renovações em ordem cronológica.</p></div><div className="agenda-month"><CalendarDays size={17} />{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(today)}</div></section>
@@ -526,7 +528,57 @@ function RecordModal({ modal, clients, cloudReady, onClose, onSaveClient, onSave
   const isClient = modal.kind === "client";
   const attachedPdf = modal.kind === "policy" ? modal.item?.pdfName : null;
   const title = isClient ? modal.item ? "Editar cliente" : "Novo cliente" : modal.item ? "Editar apólice" : "Nova apólice";
-  return <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="record-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-heading"><div><span className="section-kicker">{isClient ? "RELACIONAMENTO" : "PROTEÇÃO"}</span><h2 id="modal-title">{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={19} /></button></div>
-    {isClient ? <form onSubmit={onSaveClient} className="record-form"><label>Nome completo<input name="name" required defaultValue={modal.item?.name} placeholder="Ex.: Maria Oliveira" autoFocus /></label><div className="form-row"><label>E-mail<input name="email" type="email" defaultValue={modal.item?.email} placeholder="maria@email.com" /></label><label>Telefone<input name="phone" type="tel" defaultValue={modal.item?.phone} placeholder="(11) 99999-9999" /></label></div><div className="form-row"><label>Data de nascimento<input name="birthday" type="date" defaultValue={modal.item?.birthday ?? ""} /></label><label>Empresa <span className="optional-label">opcional</span><input name="company" defaultValue={modal.item?.company} placeholder="Nome da empresa" /></label></div><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar cliente"}</button></div></form> : <form onSubmit={onSavePolicy} className="record-form"><label>Cliente<select name="clientId" required defaultValue={modal.item?.clientId ?? clients[0]?.id}>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><div className="form-row"><label>Número da apólice<input name="number" required defaultValue={modal.item?.number} placeholder="Ex.: AU-2948106" /></label><label>Seguradora<input name="insurer" required defaultValue={modal.item?.insurer} placeholder="Nome da seguradora" /></label></div><div className="form-row"><label>Tipo<select name="type" defaultValue={modal.item?.type ?? "Automóvel"}><option>Automóvel</option><option>Residencial</option><option>Vida</option><option>Empresarial</option><option>Saúde</option><option>Outro</option></select></label><label>Prêmio anual (R$)<input name="premium" type="number" min="0" step="0.01" required defaultValue={modal.item?.premium} placeholder="0,00" /></label></div><div className="form-row"><label>Início da vigência<input name="startDate" type="date" required defaultValue={modal.item?.startDate} /></label><label>Fim da vigência<input name="endDate" type="date" required defaultValue={modal.item?.endDate} /></label></div><label className="pdf-upload-field">PDF da apólice<input name="pdf" type="file" accept="application/pdf,.pdf" disabled={!cloudReady} /><small>{cloudReady ? "PDF de até 4 MB. Armazenado em Blob privado." : "Conecte o Vercel Blob para habilitar anexos."}</small></label>{attachedPdf && modal.kind === "policy" && modal.item && <div className="attached-pdf"><a className="pdf-link" href={`/api/policies/${encodeURIComponent(modal.item.id)}/pdf`} target="_blank" rel="noreferrer"><FileText size={15} />{attachedPdf}</a><button type="button" className="text-link" onClick={() => onRemovePdf(modal.item as Policy)}>Remover PDF</button></div>}<label>Observações sobre a apólice<textarea name="notes" rows={3} defaultValue={modal.item?.notes} placeholder="Condições especiais, histórico de contato, próximos passos..." /></label><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar apólice"}</button></div></form>}
-  </section></div>;
+  return (
+    <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="record-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div className="modal-heading">
+          <div>
+            <span className="section-kicker">{isClient ? "RELACIONAMENTO" : "PROTEÇÃO"}</span>
+            <h2 id="modal-title">{title}</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={19} /></button>
+        </div>
+        {isClient ? (
+          <form onSubmit={onSaveClient} className="record-form">
+            <label>Nome completo<input name="name" required defaultValue={modal.item?.name} placeholder="Ex.: Maria Oliveira" autoFocus /></label>
+            <div className="form-row">
+              <label>E-mail<input name="email" type="email" defaultValue={modal.item?.email} placeholder="maria@email.com" /></label>
+              <label>Telefone<input name="phone" type="tel" defaultValue={modal.item?.phone} placeholder="(11) 99999-9999" /></label>
+            </div>
+            <div className="form-row">
+              <label>Data de nascimento<input name="birthday" type="date" defaultValue={modal.item?.birthday ?? ""} /></label>
+              <label>Empresa <span className="optional-label">opcional</span><input name="company" defaultValue={modal.item?.company} placeholder="Nome da empresa" /></label>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button>
+              <button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar cliente"}</button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={onSavePolicy} className="record-form">
+            <label>Cliente<select name="clientId" required defaultValue={modal.item?.clientId ?? clients[0]?.id}>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+            <div className="form-row">
+              <label>Número da apólice<input name="number" defaultValue={modal.item?.number ?? ""} placeholder="Ex.: AU-2948106" /></label>
+              <label>Seguradora<input name="insurer" defaultValue={modal.item?.insurer ?? ""} placeholder="Nome da seguradora" /></label>
+            </div>
+              <div className="form-row">
+                <label>Tipo<select name="type" defaultValue={modal.item ? modal.item.type ?? "" : "Automóvel"}><option value="">Não informado</option><option>Automóvel</option><option>Residencial</option><option>Vida</option><option>Empresarial</option><option>Saúde</option><option>Outro</option></select></label>
+              <label>Prêmio total (R$)<input name="premium" type="number" min="0" step="0.01" defaultValue={modal.item?.premium ?? ""} placeholder="0,00" /></label>
+            </div>
+            <div className="form-row">
+              <label>Início da vigência<input name="startDate" type="date" defaultValue={modal.item?.startDate ?? ""} /></label>
+              <label>Fim da vigência<input name="endDate" type="date" required defaultValue={modal.item?.endDate} /></label>
+            </div>
+            <label className="pdf-upload-field">PDF da apólice<input name="pdf" type="file" accept="application/pdf,.pdf" disabled={!cloudReady} /><small>{cloudReady ? "PDF de até 4 MB. Armazenado em Blob privado." : "Conecte o Vercel Blob para habilitar anexos."}</small></label>
+            {attachedPdf && modal.kind === "policy" && modal.item && <div className="attached-pdf"><a className="pdf-link" href={`/api/policies/${encodeURIComponent(modal.item.id)}/pdf`} target="_blank" rel="noreferrer"><FileText size={15} />{attachedPdf}</a><button type="button" className="text-link" onClick={() => onRemovePdf(modal.item as Policy)}>Remover PDF</button></div>}
+            <label>Observações sobre a apólice<textarea name="notes" rows={3} defaultValue={modal.item?.notes} placeholder="Condições especiais, histórico de contato, próximos passos..." /></label>
+            <div className="modal-actions">
+              <button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button>
+              <button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar apólice"}</button>
+            </div>
+          </form>
+        )}
+      </section>
+    </div>
+  );
 }

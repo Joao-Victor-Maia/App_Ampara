@@ -9,14 +9,33 @@ export async function POST(request: Request) {
   const ownerId = await requireOwner();
   if (isResponse(ownerId)) return ownerId;
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body || typeof body.id !== "string" || typeof body.clientId !== "string" || typeof body.number !== "string" || typeof body.insurer !== "string" || typeof body.type !== "string" || !Number.isFinite(Number(body.premium)) || Number(body.premium) < 0 || !isValidIsoDate(body.startDate) || !isValidIsoDate(body.endDate) || body.endDate < body.startDate) {
+  const validOptionalText = (value: unknown) => value === null || value === undefined || value === "" || typeof value === "string";
+  const validOptionalDate = (value: unknown) => value === null || value === undefined || value === "" || isValidIsoDate(value);
+  const premiumValue = body?.premium;
+  const premiumIsEmpty = premiumValue === null || premiumValue === undefined || premiumValue === "";
+  const premium = premiumIsEmpty
+    ? null
+    : typeof premiumValue === "number" || typeof premiumValue === "string"
+      ? Number(premiumValue)
+      : Number.NaN;
+  const startDate = typeof body?.startDate === "string" && body.startDate ? body.startDate : null;
+  const endDate = body?.endDate;
+
+  if (!body || typeof body.id !== "string" || typeof body.clientId !== "string" ||
+    !validOptionalText(body.number) || !validOptionalText(body.insurer) || !validOptionalText(body.type) ||
+    (!premiumIsEmpty && (premium === null || !Number.isFinite(premium) || premium < 0)) ||
+    !validOptionalDate(body.startDate) || !isValidIsoDate(endDate) ||
+    (startDate !== null && endDate < startDate)) {
     return Response.json({ error: "Dados da apólice inválidos." }, { status: 400 });
   }
+  const number = typeof body.number === "string" ? body.number.trim() || null : null;
+  const insurer = typeof body.insurer === "string" ? body.insurer.trim() || null : null;
+  const type = typeof body.type === "string" ? body.type.trim() || null : null;
 
   try {
     const sql = getDatabase();
     const saved = await sql`INSERT INTO policies (id, owner_id, client_id, policy_number, insurer, coverage, premium, start_date, end_date, notes)
-      VALUES (${body.id}, ${ownerId}, ${body.clientId}, ${body.number.trim()}, ${body.insurer.trim()}, ${body.type}, ${Number(body.premium)}, ${body.startDate}, ${body.endDate}, ${String(body.notes ?? "").trim()})
+      VALUES (${body.id}, ${ownerId}, ${body.clientId}, ${number}, ${insurer}, ${type}, ${premium}, ${startDate}, ${endDate}, ${String(body.notes ?? "").trim()})
       ON CONFLICT (id) DO UPDATE SET client_id = EXCLUDED.client_id, policy_number = EXCLUDED.policy_number, insurer = EXCLUDED.insurer, coverage = EXCLUDED.coverage, premium = EXCLUDED.premium, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date, notes = EXCLUDED.notes, updated_at = now()
       WHERE policies.owner_id = ${ownerId} RETURNING id`;
     if (!saved.length) return Response.json({ error: "Apólice não encontrada." }, { status: 404 });
