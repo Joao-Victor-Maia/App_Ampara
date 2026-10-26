@@ -36,7 +36,7 @@ type Client = {
   name: string;
   email: string;
   phone: string;
-  birthday: string;
+  birthday: string | null;
   company: string;
 };
 
@@ -101,10 +101,11 @@ const navItems: { id: Section; label: string; icon: typeof LayoutDashboard }[] =
 
 const money = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
-const dateLabel = (date: string, options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short" }) =>
-  new Intl.DateTimeFormat("pt-BR", options).format(new Date(`${date}T12:00:00`));
+const dateLabel = (date: string | null, options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short" }) =>
+  date ? new Intl.DateTimeFormat("pt-BR", options).format(new Date(`${date}T12:00:00`)) : "Não informado";
 const initials = (name: string) => name.split(" ").slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-const nextBirthday = (date: string) => {
+const nextBirthday = (date: string | null) => {
+  if (!date) return null;
   const [, month, day] = date.split("-").map(Number);
   const next = new Date(today.getFullYear(), month - 1, day);
   if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) next.setFullYear(next.getFullYear() + 1);
@@ -164,12 +165,15 @@ export default function Home() {
     }
     if (!isLoaded) return;
     if (!isSignedIn) {
-      setCloudReady(false);
-      setCloudError(false);
-      setClients([]);
-      setPolicies([]);
-      setReady(true);
-      return;
+      queueMicrotask(() => {
+        if (!active) return;
+        setCloudReady(false);
+        setCloudError(false);
+        setClients([]);
+        setPolicies([]);
+        setReady(true);
+      });
+      return () => { active = false; };
     }
     queueMicrotask(() => { if (active) setReady(true); });
     fetch("/api/workspace", { cache: "no-store" })
@@ -200,7 +204,10 @@ export default function Home() {
     [policies],
   );
   const upcomingBirthdays = useMemo(
-    () => clients.map((client) => ({ client, date: nextBirthday(client.birthday) })).sort((a, b) => a.date.getTime() - b.date.getTime()),
+    () => clients.flatMap((client) => {
+      const date = nextBirthday(client.birthday);
+      return date ? [{ client, date }] : [];
+    }).sort((a, b) => a.date.getTime() - b.date.getTime()),
     [clients],
   );
   const filteredClients = clients.filter((client) => `${client.name} ${client.email} ${client.phone} ${client.company}`.toLowerCase().includes(query.toLowerCase()));
@@ -225,7 +232,7 @@ export default function Home() {
       name: String(data.get("name")).trim(),
       email: String(data.get("email")).trim(),
       phone: String(data.get("phone")).trim(),
-      birthday: String(data.get("birthday")),
+      birthday: String(data.get("birthday")) || null,
       company: String(data.get("company")).trim(),
     };
     if (cloudReady && !await saveToCloud("/api/clients", "POST", client)) return;
@@ -332,7 +339,7 @@ export default function Home() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="sidebar-tip"><span className="tip-icon"><Gift size={17} /></span><strong>Relacionamento em dia</strong><p>{upcomingBirthdays.length} aniversários próximos para celebrar.</p><button onClick={() => setSection("agenda")}>Ver agenda <ArrowRight size={14} /></button></div>
+          <div className="sidebar-tip"><span className="tip-icon"><Gift size={17} /></span><strong>Relacionamento em dia</strong><p>{upcomingBirthdays.length} aniversários cadastrados.</p><button onClick={() => setSection("agenda")}>Ver agenda <ArrowRight size={14} /></button></div>
           <div className="profile-row"><Avatar name="Ana Martins" /><span className="profile-copy"><strong>Ana Martins</strong><small>Corretora</small></span><MoreHorizontal size={19} /></div>
         </div>
       </aside>
@@ -520,6 +527,6 @@ function RecordModal({ modal, clients, cloudReady, onClose, onSaveClient, onSave
   const attachedPdf = modal.kind === "policy" ? modal.item?.pdfName : null;
   const title = isClient ? modal.item ? "Editar cliente" : "Novo cliente" : modal.item ? "Editar apólice" : "Nova apólice";
   return <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="record-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-heading"><div><span className="section-kicker">{isClient ? "RELACIONAMENTO" : "PROTEÇÃO"}</span><h2 id="modal-title">{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Fechar"><X size={19} /></button></div>
-    {isClient ? <form onSubmit={onSaveClient} className="record-form"><label>Nome completo<input name="name" required defaultValue={modal.item?.name} placeholder="Ex.: Maria Oliveira" autoFocus /></label><div className="form-row"><label>E-mail<input name="email" type="email" defaultValue={modal.item?.email} placeholder="maria@email.com" /></label><label>Telefone<input name="phone" type="tel" defaultValue={modal.item?.phone} placeholder="(11) 99999-9999" /></label></div><div className="form-row"><label>Data de nascimento<input name="birthday" type="date" required defaultValue={modal.item?.birthday} /></label><label>Empresa <span className="optional-label">opcional</span><input name="company" defaultValue={modal.item?.company} placeholder="Nome da empresa" /></label></div><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar cliente"}</button></div></form> : <form onSubmit={onSavePolicy} className="record-form"><label>Cliente<select name="clientId" required defaultValue={modal.item?.clientId ?? clients[0]?.id}>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><div className="form-row"><label>Número da apólice<input name="number" required defaultValue={modal.item?.number} placeholder="Ex.: AU-2948106" /></label><label>Seguradora<input name="insurer" required defaultValue={modal.item?.insurer} placeholder="Nome da seguradora" /></label></div><div className="form-row"><label>Tipo<select name="type" defaultValue={modal.item?.type ?? "Automóvel"}><option>Automóvel</option><option>Residencial</option><option>Vida</option><option>Empresarial</option><option>Saúde</option><option>Outro</option></select></label><label>Prêmio anual (R$)<input name="premium" type="number" min="0" step="0.01" required defaultValue={modal.item?.premium} placeholder="0,00" /></label></div><div className="form-row"><label>Início da vigência<input name="startDate" type="date" required defaultValue={modal.item?.startDate} /></label><label>Fim da vigência<input name="endDate" type="date" required defaultValue={modal.item?.endDate} /></label></div><label className="pdf-upload-field">PDF da apólice<input name="pdf" type="file" accept="application/pdf,.pdf" disabled={!cloudReady} /><small>{cloudReady ? "PDF de até 4 MB. Armazenado em Blob privado." : "Conecte o Vercel Blob para habilitar anexos."}</small></label>{attachedPdf && modal.kind === "policy" && modal.item && <div className="attached-pdf"><a className="pdf-link" href={`/api/policies/${encodeURIComponent(modal.item.id)}/pdf`} target="_blank" rel="noreferrer"><FileText size={15} />{attachedPdf}</a><button type="button" className="text-link" onClick={() => onRemovePdf(modal.item as Policy)}>Remover PDF</button></div>}<label>Observações sobre a apólice<textarea name="notes" rows={3} defaultValue={modal.item?.notes} placeholder="Condições especiais, histórico de contato, próximos passos..." /></label><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar apólice"}</button></div></form>}
+    {isClient ? <form onSubmit={onSaveClient} className="record-form"><label>Nome completo<input name="name" required defaultValue={modal.item?.name} placeholder="Ex.: Maria Oliveira" autoFocus /></label><div className="form-row"><label>E-mail<input name="email" type="email" defaultValue={modal.item?.email} placeholder="maria@email.com" /></label><label>Telefone<input name="phone" type="tel" defaultValue={modal.item?.phone} placeholder="(11) 99999-9999" /></label></div><div className="form-row"><label>Data de nascimento<input name="birthday" type="date" defaultValue={modal.item?.birthday ?? ""} /></label><label>Empresa <span className="optional-label">opcional</span><input name="company" defaultValue={modal.item?.company} placeholder="Nome da empresa" /></label></div><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar cliente"}</button></div></form> : <form onSubmit={onSavePolicy} className="record-form"><label>Cliente<select name="clientId" required defaultValue={modal.item?.clientId ?? clients[0]?.id}>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><div className="form-row"><label>Número da apólice<input name="number" required defaultValue={modal.item?.number} placeholder="Ex.: AU-2948106" /></label><label>Seguradora<input name="insurer" required defaultValue={modal.item?.insurer} placeholder="Nome da seguradora" /></label></div><div className="form-row"><label>Tipo<select name="type" defaultValue={modal.item?.type ?? "Automóvel"}><option>Automóvel</option><option>Residencial</option><option>Vida</option><option>Empresarial</option><option>Saúde</option><option>Outro</option></select></label><label>Prêmio anual (R$)<input name="premium" type="number" min="0" step="0.01" required defaultValue={modal.item?.premium} placeholder="0,00" /></label></div><div className="form-row"><label>Início da vigência<input name="startDate" type="date" required defaultValue={modal.item?.startDate} /></label><label>Fim da vigência<input name="endDate" type="date" required defaultValue={modal.item?.endDate} /></label></div><label className="pdf-upload-field">PDF da apólice<input name="pdf" type="file" accept="application/pdf,.pdf" disabled={!cloudReady} /><small>{cloudReady ? "PDF de até 4 MB. Armazenado em Blob privado." : "Conecte o Vercel Blob para habilitar anexos."}</small></label>{attachedPdf && modal.kind === "policy" && modal.item && <div className="attached-pdf"><a className="pdf-link" href={`/api/policies/${encodeURIComponent(modal.item.id)}/pdf`} target="_blank" rel="noreferrer"><FileText size={15} />{attachedPdf}</a><button type="button" className="text-link" onClick={() => onRemovePdf(modal.item as Policy)}>Remover PDF</button></div>}<label>Observações sobre a apólice<textarea name="notes" rows={3} defaultValue={modal.item?.notes} placeholder="Condições especiais, histórico de contato, próximos passos..." /></label><div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button button-primary">{modal.item ? "Salvar alterações" : "Adicionar apólice"}</button></div></form>}
   </section></div>;
 }
