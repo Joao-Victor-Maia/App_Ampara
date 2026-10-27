@@ -1,0 +1,4 @@
+ALTER TABLE policies
+  ADD COLUMN IF NOT EXISTS vehicle_plate TEXT,
+  ADD COLUMN IF NOT EXISTS vehicle_make TEXT,
+  ADD COLUMN IF NOT EXISTS vehicle_model TEXT;

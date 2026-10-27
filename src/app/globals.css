@@ -154,7 +154,10 @@ h1, h2, p { margin-top: 0; }
 .table-panel { overflow: hidden; }
 .table-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 17px; border-bottom: 1px solid #edf1ee; color: #87938c; font-size: 10px; }
 .table-toolbar strong { color: #43594e; font-size: 11px; font-weight: 600; }
-.table-filter-label { display: inline-flex; align-items: center; gap: 5px; color: #95a19a; }
+.table-search { display: flex; width: min(360px, 55%); height: 34px; align-items: center; gap: 8px; padding: 0 10px; color: #8b9991; border: 1px solid #e4eae6; border-radius: 5px; background: #fbfcfb; }
+.table-search:focus-within { border-color: #9eb9a8; background: #fff; }
+.table-search input { width: 100%; min-width: 0; padding: 0; color: var(--ink); border: 0; outline: none; background: transparent; font-size: 11px; }
+.table-search input::placeholder { color: #9aa59f; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
 th { padding: 11px 14px; color: #929e97; background: #fbfcfb; font-size: 9px; font-weight: 600; white-space: nowrap; }
@@ -166,6 +169,7 @@ td > strong { color: #456154; font-size: 10px; font-weight: 600; }
 .client-cell > span:last-child, .policy-cell > span:last-child { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .client-cell strong, .policy-cell strong { overflow: hidden; color: #354d41; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .client-cell small, .policy-cell small { overflow: hidden; color: #9aa49e; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.policy-cell .vehicle-details { color: #668271; }
 .policy-cell { min-width: 175px; }
 .policy-cell .policy-type-icon { width: 30px; height: 30px; }
 .table-subline { display: block; max-width: 210px; overflow: hidden; margin-top: 4px; color: #9ca7a0; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
@@ -237,6 +241,7 @@ td > strong { color: #456154; font-size: 10px; font-weight: 600; }
 .pdf-link:hover { color: #1b6349; text-decoration: underline; }
 .attached-pdf .pdf-link { max-width: 310px; font-size: 10px; }
 .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.vehicle-form-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .optional-label { color: #a0aaa4; font-size: 9px; font-weight: 400; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; padding-top: 14px; border-top: 1px solid #edf1ee; }
 .mobile-scrim { display: none; }
@@ -309,6 +314,7 @@ td > strong { color: #456154; font-size: 10px; font-weight: 600; }
   .page-heading { align-items: flex-start; flex-direction: column; gap: 13px; margin: 7px 0 17px; }
   .page-heading > .button, .renewal-summary, .agenda-month { align-self: flex-start; }
   .table-toolbar { align-items: flex-start; flex-direction: column; gap: 7px; padding: 12px; }
+  .table-search { width: 100%; }
   .table-scroll { margin-right: 0; }
   table { min-width: 670px; }
   .policies-panel table { min-width: 690px; }
@@ -321,7 +327,7 @@ td > strong { color: #456154; font-size: 10px; font-weight: 600; }
   .agenda-event { gap: 8px; }
   .agenda-event-distance { display: none; }
   .record-modal { padding: 17px; }
-  .form-row { grid-template-columns: 1fr; gap: 12px; }
+  .form-row, .vehicle-form-row { grid-template-columns: 1fr; gap: 12px; }
 }
 @media print {
   .sidebar, .topbar, .demo-notice, .welcome-actions, .page-footer button, .row-actions, .button { display: none !important; }

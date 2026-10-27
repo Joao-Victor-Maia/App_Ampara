@@ -46,6 +46,9 @@ type Policy = {
   number: string | null;
   insurer: string | null;
   type: string | null;
+  vehiclePlate?: string | null;
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
   premium: number | null;
   startDate: string | null;
   endDate: string;
@@ -103,6 +106,8 @@ const money = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
 const dateLabel = (date: string | null, options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short" }) =>
   date ? new Intl.DateTimeFormat("pt-BR", options).format(new Date(`${date}T12:00:00`)) : "Não informado";
+const normalizeSearchText = (value: string) =>
+  value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const initials = (name: string) => name.split(" ").slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 const nextBirthday = (date: string | null) => {
   if (!date) return null;
@@ -210,10 +215,16 @@ export default function Home() {
     }).sort((a, b) => a.date.getTime() - b.date.getTime()),
     [clients],
   );
-  const filteredClients = clients.filter((client) => `${client.name} ${client.email} ${client.phone} ${client.company}`.toLowerCase().includes(query.toLowerCase()));
+  const normalizedQuery = normalizeSearchText(query);
+  const filteredClients = clients.filter((client) =>
+    normalizeSearchText(`${client.name} ${client.email} ${client.phone} ${client.company}`).includes(normalizedQuery),
+  );
   const filteredPolicies = policies.filter((policy) => {
     const client = clientById.get(policy.clientId);
-    return `${policy.number ?? ""} ${policy.insurer ?? ""} ${policy.type ?? ""} ${client?.name ?? ""}`.toLowerCase().includes(query.toLowerCase());
+    const vehicleDetails = policy.type === "Automóvel"
+      ? `${policy.vehiclePlate ?? ""} ${policy.vehicleMake ?? ""} ${policy.vehicleModel ?? ""}`
+      : "";
+    return normalizeSearchText(`${policy.number ?? ""} ${policy.insurer ?? ""} ${policy.type ?? ""} ${vehicleDetails} ${client?.name ?? ""}`).includes(normalizedQuery);
   });
   const activePolicies = policies.filter((policy) => daysUntil(new Date(`${policy.endDate}T12:00:00`)) >= 0);
   const renewalCount = upcomingPolicies.filter((policy) => daysUntil(new Date(`${policy.endDate}T12:00:00`)) <= 30).length;
@@ -257,6 +268,7 @@ export default function Home() {
     }
     const startDate = String(data.get("startDate")) || null;
     const endDate = String(data.get("endDate"));
+    const type = String(data.get("type")) || null;
     if (startDate && endDate < startDate) {
       window.alert("O fim da vigência precisa ser igual ou posterior ao início.");
       return;
@@ -266,7 +278,10 @@ export default function Home() {
       clientId: String(data.get("clientId")),
       number: String(data.get("number")).trim() || null,
       insurer: String(data.get("insurer")).trim() || null,
-      type: String(data.get("type")) || null,
+      type,
+      vehiclePlate: type === "Automóvel" ? String(data.get("vehiclePlate") ?? "").trim().toUpperCase() || null : null,
+      vehicleMake: type === "Automóvel" ? String(data.get("vehicleMake") ?? "").trim() || null : null,
+      vehicleModel: type === "Automóvel" ? String(data.get("vehicleModel") ?? "").trim() || null : null,
       premium: String(data.get("premium")).trim() ? Number(data.get("premium")) : null,
       startDate,
       endDate,
@@ -368,8 +383,8 @@ export default function Home() {
         <div className="page-content">
           <div className={`demo-notice${cloudReady ? " cloud-notice" : ""}`}><span className="demo-dot" />{cloudReady ? "Banco Neon conectado" : cloudError ? "Banco de dados indisponível" : "Modo demonstração"} <span className="notice-divider">·</span> {cloudReady ? "dados sincronizados com segurança" : cloudError ? "configure Neon e Clerk para continuar" : "alterações salvas neste navegador"}</div>
           {section === "inicio" && <Dashboard firstName={greetingName} clients={clients} policies={policies} clientById={clientById} upcomingPolicies={upcomingPolicies} upcomingBirthdays={upcomingBirthdays} activePolicies={activePolicies.length} renewalCount={renewalCount} premiumTotal={premiumTotal} missingPremiumCount={missingPremiumCount} onSection={setSection} onNewPolicy={() => setModal({ kind: "policy" })} onNewClient={() => setModal({ kind: "client" })} />}
-          {section === "clientes" && <ClientsPage clients={filteredClients} policies={policies} query={query} onNew={() => setModal({ kind: "client" })} onEdit={(client) => setModal({ kind: "client", item: client })} onDelete={removeClient} />}
-          {section === "apolices" && <PoliciesPage policies={filteredPolicies} clientById={clientById} query={query} onNew={() => setModal({ kind: "policy" })} onEdit={(policy) => setModal({ kind: "policy", item: policy })} onDelete={removePolicy} />}
+          {section === "clientes" && <ClientsPage clients={filteredClients} policies={policies} query={query} onQueryChange={setQuery} onNew={() => setModal({ kind: "client" })} onEdit={(client) => setModal({ kind: "client", item: client })} onDelete={removeClient} />}
+          {section === "apolices" && <PoliciesPage policies={filteredPolicies} clientById={clientById} query={query} onQueryChange={setQuery} onNew={() => setModal({ kind: "policy" })} onEdit={(policy) => setModal({ kind: "policy", item: policy })} onDelete={removePolicy} />}
           {section === "vigencias" && <RenewalsPage policies={upcomingPolicies} clientById={clientById} onEdit={(policy) => setModal({ kind: "policy", item: policy })} />}
           {section === "agenda" && <AgendaPage birthdays={upcomingBirthdays} policies={upcomingPolicies} clientById={clientById} onEdit={(policy) => setModal({ kind: "policy", item: policy })} />}
           <footer className="page-footer"><span>Ampara CRM</span><span>Seus relacionamentos, bem cuidados.</span><button onClick={() => window.print()}><ArrowDownToLine size={14} /> Exportar / imprimir</button></footer>
@@ -465,10 +480,10 @@ function Metric({ icon: Icon, label, value, note, accent }: { icon: typeof Users
   return <article className={`metric-card metric-${accent}`}><div className="metric-top"><span className="metric-icon"><Icon size={18} /></span><span className="metric-trend"><ArrowUpRight size={14} /></span></div><div className="metric-label">{label}</div><div className="metric-value">{value}</div><div className="metric-note">{note}</div></article>;
 }
 
-function ClientsPage({ clients, policies, query, onNew, onEdit, onDelete }: { clients: Client[]; policies: Policy[]; query: string; onNew: () => void; onEdit: (client: Client) => void; onDelete: (client: Client) => void }) {
+function ClientsPage({ clients, policies, query, onQueryChange, onNew, onEdit, onDelete }: { clients: Client[]; policies: Policy[]; query: string; onQueryChange: (value: string) => void; onNew: () => void; onEdit: (client: Client) => void; onDelete: (client: Client) => void }) {
   return <>
     <section className="page-heading"><div><span className="section-kicker">RELACIONAMENTO</span><h1>Clientes</h1><p>Uma visão clara de cada pessoa e da carteira que vocês construíram.</p></div><button className="button button-primary" onClick={onNew}><Plus size={17} /> Novo cliente</button></section>
-    <section className="content-panel table-panel"><div className="table-toolbar"><div><strong>{clients.length} clientes</strong><span> · organizados por nome</span></div><span className="table-filter-label"><Search size={14} />{query ? `Busca: ${query}` : "Todos os clientes"}</span></div>
+    <section className="content-panel table-panel"><div className="table-toolbar"><div><strong>{clients.length} clientes</strong><span> · organizados por nome</span></div><label className="table-search"><Search size={15} /><input type="search" aria-label="Pesquisar clientes" placeholder="Pesquisar clientes..." value={query} onChange={(event) => onQueryChange(event.target.value)} /></label></div>
       {clients.length ? <div className="table-scroll"><table><thead><tr><th>CLIENTE</th><th>CONTATO</th><th>APÓLICES</th><th>ANIVERSÁRIO</th><th></th></tr></thead><tbody>{clients.map((client) => {
         const clientPolicies = policies.filter((policy) => policy.clientId === client.id);
         return <tr key={client.id}><td><div className="client-cell"><Avatar name={client.name} small /><span><strong>{client.name}</strong><small>{client.company || "Pessoa física"}</small></span></div></td><td><span>{client.email || "—"}</span><small className="table-subline">{client.phone || "Sem telefone"}</small></td><td><span className="policy-count">{clientPolicies.length}</span> <span className="muted-text">{clientPolicies.length === 1 ? "apólice" : "apólices"}</span></td><td>{dateLabel(client.birthday, { day: "2-digit", month: "long" })}</td><td><div className="row-actions"><button className="icon-button" onClick={() => onEdit(client)} aria-label={`Editar ${client.name}`}><Pencil size={15} /></button><button className="icon-button danger-action" onClick={() => onDelete(client)} aria-label={`Excluir ${client.name}`}><Trash2 size={15} /></button></div></td></tr>;
@@ -477,10 +492,10 @@ function ClientsPage({ clients, policies, query, onNew, onEdit, onDelete }: { cl
   </>;
 }
 
-function PoliciesPage({ policies, clientById, query, onNew, onEdit, onDelete }: { policies: Policy[]; clientById: Map<string, Client>; query: string; onNew: () => void; onEdit: (policy: Policy) => void; onDelete: (policy: Policy) => void }) {
+function PoliciesPage({ policies, clientById, query, onQueryChange, onNew, onEdit, onDelete }: { policies: Policy[]; clientById: Map<string, Client>; query: string; onQueryChange: (value: string) => void; onNew: () => void; onEdit: (policy: Policy) => void; onDelete: (policy: Policy) => void }) {
   return <>
     <section className="page-heading"><div><span className="section-kicker">PROTEÇÃO E PATRIMÔNIO</span><h1>Apólices</h1><p>Dados, vigências e observações reunidos em um só lugar.</p></div><button className="button button-primary" onClick={onNew}><Plus size={17} /> Nova apólice</button></section>
-    <section className="content-panel table-panel"><div className="table-toolbar"><div><strong>{policies.length} apólices</strong><span> · carteira completa</span></div><span className="table-filter-label"><Search size={14} />{query ? `Busca: ${query}` : "Todos os contratos"}</span></div>
+    <section className="content-panel table-panel"><div className="table-toolbar"><div><strong>{policies.length} apólices</strong><span> · carteira completa</span></div><label className="table-search"><Search size={15} /><input type="search" aria-label="Pesquisar apólices" placeholder="Pesquisar por número, cliente ou seguradora..." value={query} onChange={(event) => onQueryChange(event.target.value)} /></label></div>
       {policies.length ? <PolicyTable policies={policies} clientById={clientById} onEdit={onEdit} onDelete={onDelete} /> : <EmptyState text={query ? "Nenhuma apólice corresponde à sua busca." : "Cadastre uma apólice para acompanhar suas vigências."} />}
     </section>
   </>;
@@ -490,7 +505,10 @@ function PolicyTable({ policies, clientById, compact = false, onEdit, onDelete }
   return <div className="table-scroll"><table><thead><tr><th>APÓLICE</th><th>CLIENTE</th><th>VIGÊNCIA</th><th>PRÊMIO TOTAL</th><th>STATUS</th>{!compact && <th>AÇÕES</th>}</tr></thead><tbody>{policies.map((policy) => {
     const client = clientById.get(policy.clientId);
     const policyLabel = policy.number || "Número não informado";
-    return <tr key={policy.id}><td><div className="policy-cell"><span className="policy-type-icon">{kindIcon(policy.type, 16)}</span><span><strong>{policy.type || "Tipo não informado"}</strong><small>{policyLabel} · {policy.insurer || "Seguradora não informada"}</small>{policy.pdfName && <a className="pdf-link" href={`/api/policies/${encodeURIComponent(policy.id)}/pdf`} target="_blank" rel="noreferrer"><Paperclip size={11} />{policy.pdfName}</a>}{policy.notes && <span className="note-indicator"><span />Com observação</span>}</span></div></td><td><div className="client-cell"><Avatar name={client?.name ?? "Cliente removido"} small /><span><strong>{client?.name ?? "Cliente removido"}</strong><small>{client?.company || client?.email || ""}</small></span></div></td><td><span>{policy.startDate ? `${dateLabel(policy.startDate)} – ` : ""}{dateLabel(policy.endDate, { day: "2-digit", month: "short", year: "numeric" })}</span><small className="table-subline">{policy.notes || "Sem observações"}</small></td><td><strong>{policy.premium === null ? "—" : money(policy.premium)}</strong></td><td><Status endDate={policy.endDate} /></td>{!compact && <td><div className="row-actions"><button className="button button-secondary button-small" onClick={() => onEdit?.(policy)} aria-label={`Editar ${policyLabel}`}><Pencil size={14} />Editar</button><button className="icon-button danger-action" onClick={() => onDelete?.(policy)} aria-label={`Excluir ${policyLabel}`}><Trash2 size={15} /></button></div></td>}</tr>;
+    const vehicleDetails = policy.type === "Automóvel"
+      ? [policy.vehiclePlate, policy.vehicleMake, policy.vehicleModel].filter(Boolean).join(" · ")
+      : "";
+    return <tr key={policy.id}><td><div className="policy-cell"><span className="policy-type-icon">{kindIcon(policy.type, 16)}</span><span><strong>{policy.type || "Tipo não informado"}</strong><small>{policyLabel} · {policy.insurer || "Seguradora não informada"}</small>{vehicleDetails && <small className="vehicle-details">{vehicleDetails}</small>}{policy.pdfName && <a className="pdf-link" href={`/api/policies/${encodeURIComponent(policy.id)}/pdf`} target="_blank" rel="noreferrer"><Paperclip size={11} />{policy.pdfName}</a>}{policy.notes && <span className="note-indicator"><span />Com observação</span>}</span></div></td><td><div className="client-cell"><Avatar name={client?.name ?? "Cliente removido"} small /><span><strong>{client?.name ?? "Cliente removido"}</strong><small>{client?.company || client?.email || ""}</small></span></div></td><td><span>{policy.startDate ? `${dateLabel(policy.startDate)} – ` : ""}{dateLabel(policy.endDate, { day: "2-digit", month: "short", year: "numeric" })}</span><small className="table-subline">{policy.notes || "Sem observações"}</small></td><td><strong>{policy.premium === null ? "—" : money(policy.premium)}</strong></td><td><Status endDate={policy.endDate} /></td>{!compact && <td><div className="row-actions"><button className="button button-secondary button-small" onClick={() => onEdit?.(policy)} aria-label={`Editar ${policyLabel}`}><Pencil size={14} />Editar</button><button className="icon-button danger-action" onClick={() => onDelete?.(policy)} aria-label={`Excluir ${policyLabel}`}><Trash2 size={15} /></button></div></td>}</tr>;
   })}</tbody></table></div>;
 }
 
@@ -525,6 +543,7 @@ function EmptyState({ text }: { text: string }) {
 }
 
 function RecordModal({ modal, clients, cloudReady, onClose, onSaveClient, onSavePolicy, onRemovePdf }: { modal: Exclude<ModalState, null>; clients: Client[]; cloudReady: boolean; onClose: () => void; onSaveClient: (event: FormEvent<HTMLFormElement>) => void; onSavePolicy: (event: FormEvent<HTMLFormElement>) => void; onRemovePdf: (policy: Policy) => void }) {
+  const [policyType, setPolicyType] = useState(modal.kind === "policy" ? modal.item?.type ?? "Automóvel" : "");
   const isClient = modal.kind === "client";
   const attachedPdf = modal.kind === "policy" ? modal.item?.pdfName : null;
   const title = isClient ? modal.item ? "Editar cliente" : "Novo cliente" : modal.item ? "Editar apólice" : "Nova apólice";
@@ -562,9 +581,14 @@ function RecordModal({ modal, clients, cloudReady, onClose, onSaveClient, onSave
               <label>Seguradora<input name="insurer" defaultValue={modal.item?.insurer ?? ""} placeholder="Nome da seguradora" /></label>
             </div>
               <div className="form-row">
-                <label>Tipo<select name="type" defaultValue={modal.item ? modal.item.type ?? "" : "Automóvel"}><option value="">Não informado</option><option>Automóvel</option><option>Residencial</option><option>Vida</option><option>Empresarial</option><option>Saúde</option><option>Outro</option></select></label>
+                <label>Tipo<select name="type" value={policyType} onChange={(event) => setPolicyType(event.target.value)}><option value="">Não informado</option><option>Automóvel</option><option>Residencial</option><option>Vida</option><option>Empresarial</option><option>Saúde</option><option>Outro</option></select></label>
               <label>Prêmio total (R$)<input name="premium" type="number" min="0" step="0.01" defaultValue={modal.item?.premium ?? ""} placeholder="0,00" /></label>
             </div>
+            {policyType === "Automóvel" && <div className="form-row vehicle-form-row">
+              <label>Placa<input name="vehiclePlate" defaultValue={modal.kind === "policy" ? modal.item?.vehiclePlate ?? "" : ""} placeholder="Ex.: ABC1D23" autoCapitalize="characters" /></label>
+              <label>Marca<input name="vehicleMake" defaultValue={modal.kind === "policy" ? modal.item?.vehicleMake ?? "" : ""} placeholder="Ex.: Toyota" /></label>
+              <label>Modelo<input name="vehicleModel" defaultValue={modal.kind === "policy" ? modal.item?.vehicleModel ?? "" : ""} placeholder="Ex.: Corolla" /></label>
+            </div>}
             <div className="form-row">
               <label>Início da vigência<input name="startDate" type="date" defaultValue={modal.item?.startDate ?? ""} /></label>
               <label>Fim da vigência<input name="endDate" type="date" required defaultValue={modal.item?.endDate} /></label>

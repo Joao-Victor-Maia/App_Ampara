@@ -23,6 +23,7 @@ export async function POST(request: Request) {
 
   if (!body || typeof body.id !== "string" || typeof body.clientId !== "string" ||
     !validOptionalText(body.number) || !validOptionalText(body.insurer) || !validOptionalText(body.type) ||
+    !validOptionalText(body.vehiclePlate) || !validOptionalText(body.vehicleMake) || !validOptionalText(body.vehicleModel) ||
     (!premiumIsEmpty && (premium === null || !Number.isFinite(premium) || premium < 0)) ||
     !validOptionalDate(body.startDate) || !isValidIsoDate(endDate) ||
     (startDate !== null && endDate < startDate)) {
@@ -31,12 +32,16 @@ export async function POST(request: Request) {
   const number = typeof body.number === "string" ? body.number.trim() || null : null;
   const insurer = typeof body.insurer === "string" ? body.insurer.trim() || null : null;
   const type = typeof body.type === "string" ? body.type.trim() || null : null;
+  const isAutomobilePolicy = type === "Automóvel";
+  const vehiclePlate = isAutomobilePolicy && typeof body.vehiclePlate === "string" ? body.vehiclePlate.trim().toUpperCase() || null : null;
+  const vehicleMake = isAutomobilePolicy && typeof body.vehicleMake === "string" ? body.vehicleMake.trim() || null : null;
+  const vehicleModel = isAutomobilePolicy && typeof body.vehicleModel === "string" ? body.vehicleModel.trim() || null : null;
 
   try {
     const sql = getDatabase();
-    const saved = await sql`INSERT INTO policies (id, owner_id, client_id, policy_number, insurer, coverage, premium, start_date, end_date, notes)
-      VALUES (${body.id}, ${ownerId}, ${body.clientId}, ${number}, ${insurer}, ${type}, ${premium}, ${startDate}, ${endDate}, ${String(body.notes ?? "").trim()})
-      ON CONFLICT (id) DO UPDATE SET client_id = EXCLUDED.client_id, policy_number = EXCLUDED.policy_number, insurer = EXCLUDED.insurer, coverage = EXCLUDED.coverage, premium = EXCLUDED.premium, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date, notes = EXCLUDED.notes, updated_at = now()
+    const saved = await sql`INSERT INTO policies (id, owner_id, client_id, policy_number, insurer, coverage, vehicle_plate, vehicle_make, vehicle_model, premium, start_date, end_date, notes)
+      VALUES (${body.id}, ${ownerId}, ${body.clientId}, ${number}, ${insurer}, ${type}, ${vehiclePlate}, ${vehicleMake}, ${vehicleModel}, ${premium}, ${startDate}, ${endDate}, ${String(body.notes ?? "").trim()})
+      ON CONFLICT (id) DO UPDATE SET client_id = EXCLUDED.client_id, policy_number = EXCLUDED.policy_number, insurer = EXCLUDED.insurer, coverage = EXCLUDED.coverage, vehicle_plate = EXCLUDED.vehicle_plate, vehicle_make = EXCLUDED.vehicle_make, vehicle_model = EXCLUDED.vehicle_model, premium = EXCLUDED.premium, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date, notes = EXCLUDED.notes, updated_at = now()
       WHERE policies.owner_id = ${ownerId} RETURNING id`;
     if (!saved.length) return Response.json({ error: "Apólice não encontrada." }, { status: 404 });
     return Response.json({ ok: true });
