@@ -137,7 +137,9 @@ function Status({ endDate }: { endDate: string }) {
 
 export default function Home() {
   const { isLoaded, isSignedIn, user } = useUser();
-  const greetingName = user?.firstName || user?.fullName?.trim().split(/\s+/)[0] || user?.username || "Ana";
+  const accountEmail = user?.primaryEmailAddress?.emailAddress;
+  const accountName = user?.fullName?.trim() || user?.username || accountEmail?.split("@")[0] || (cloudAuthConfigured ? "Usuário" : "Ana Martins");
+  const greetingName = user?.firstName?.trim() || accountName.split(/\s+/)[0];
   const [clients, setClients] = useState<Client[]>(cloudAuthConfigured ? [] : seedClients);
   const [policies, setPolicies] = useState<Policy[]>(cloudAuthConfigured ? [] : seedPolicies);
   const [section, setSection] = useState<Section>("inicio");
@@ -361,7 +363,7 @@ export default function Home() {
         </nav>
         <div className="sidebar-bottom">
           <div className="sidebar-tip"><span className="tip-icon"><Gift size={17} /></span><strong>Relacionamento em dia</strong><p>{upcomingBirthdays.length} aniversários cadastrados.</p><button onClick={() => setSection("agenda")}>Ver agenda <ArrowRight size={14} /></button></div>
-          <div className="profile-row"><Avatar name="Ana Martins" /><span className="profile-copy"><strong>Ana Martins</strong><small>Corretora</small></span><MoreHorizontal size={19} /></div>
+          <div className="profile-row"><Avatar name={accountName} /><span className="profile-copy"><strong>{accountName}</strong><small>{accountEmail || (cloudAuthConfigured ? "Conta" : "Corretora")}</small></span><MoreHorizontal size={19} /></div>
         </div>
       </aside>
 
