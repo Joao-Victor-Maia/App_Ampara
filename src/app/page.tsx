@@ -145,7 +145,7 @@ export default function Home() {
   const [modal, setModal] = useState<ModalState>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
-  const [cloudError, setCloudError] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -173,7 +173,7 @@ export default function Home() {
       queueMicrotask(() => {
         if (!active) return;
         setCloudReady(false);
-        setCloudError(false);
+        setCloudError(null);
         setClients([]);
         setPolicies([]);
         setReady(true);
@@ -184,7 +184,10 @@ export default function Home() {
     fetch("/api/workspace", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
-          if (active) setCloudError(true);
+          const result = await response.json().catch(() => null) as { error?: unknown } | null;
+          if (active) {
+            setCloudError(typeof result?.error === "string" ? result.error : `Falha ao carregar a carteira (HTTP ${response.status}).`);
+          }
           return;
         }
         const workspace = await response.json() as { clients: Client[]; policies: Policy[] };
@@ -193,7 +196,7 @@ export default function Home() {
         setPolicies(workspace.policies);
         setCloudReady(true);
       })
-      .catch(() => { if (active) setCloudError(true); });
+      .catch(() => { if (active) setCloudError("Não foi possível acessar a API da carteira. Verifique a conexão e tente novamente."); });
     return () => { active = false; };
   }, [isLoaded, isSignedIn]);
 
@@ -381,7 +384,7 @@ export default function Home() {
         </header>
 
         <div className="page-content">
-          <div className={`demo-notice${cloudReady ? " cloud-notice" : ""}`}><span className="demo-dot" />{cloudReady ? "Banco Neon conectado" : cloudError ? "Banco de dados indisponível" : "Modo demonstração"} <span className="notice-divider">·</span> {cloudReady ? "dados sincronizados com segurança" : cloudError ? "configure Neon e Clerk para continuar" : "alterações salvas neste navegador"}</div>
+          <div className={`demo-notice${cloudReady ? " cloud-notice" : ""}`}><span className="demo-dot" />{cloudReady ? "Banco Neon conectado" : cloudError ? "Conexão indisponível" : "Modo demonstração"} <span className="notice-divider">·</span> {cloudReady ? "dados sincronizados com segurança" : cloudError ?? "alterações salvas neste navegador"}</div>
           {section === "inicio" && <Dashboard firstName={greetingName} clients={clients} policies={policies} clientById={clientById} upcomingPolicies={upcomingPolicies} upcomingBirthdays={upcomingBirthdays} activePolicies={activePolicies.length} renewalCount={renewalCount} premiumTotal={premiumTotal} missingPremiumCount={missingPremiumCount} onSection={setSection} onNewPolicy={() => setModal({ kind: "policy" })} onNewClient={() => setModal({ kind: "client" })} />}
           {section === "clientes" && <ClientsPage clients={filteredClients} policies={policies} query={query} onQueryChange={setQuery} onNew={() => setModal({ kind: "client" })} onEdit={(client) => setModal({ kind: "client", item: client })} onDelete={removeClient} />}
           {section === "apolices" && <PoliciesPage policies={filteredPolicies} clientById={clientById} query={query} onQueryChange={setQuery} onNew={() => setModal({ kind: "policy" })} onEdit={(policy) => setModal({ kind: "policy", item: policy })} onDelete={removePolicy} />}

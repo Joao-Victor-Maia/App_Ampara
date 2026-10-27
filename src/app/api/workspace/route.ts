@@ -14,7 +14,8 @@ export async function GET() {
       sql`SELECT id, client_id AS "clientId", policy_number AS number, insurer, coverage AS type, vehicle_plate AS "vehiclePlate", vehicle_make AS "vehicleMake", vehicle_model AS "vehicleModel", premium::float8 AS premium, to_char(start_date, 'YYYY-MM-DD') AS "startDate", to_char(end_date, 'YYYY-MM-DD') AS "endDate", notes, pdf_name AS "pdfName" FROM policies WHERE owner_id = ${ownerId} ORDER BY created_at DESC`,
     ]);
     return Response.json({ clients, policies }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch {
+  } catch (error) {
+    console.error("[api/workspace] Failed to load workspace:", error);
     return Response.json({ error: "Não foi possível carregar a carteira. Confira a conexão e o esquema do Neon." }, { status: 503 });
   }
 }
