@@ -16,6 +16,16 @@ export async function GET() {
     return Response.json({ clients, policies }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("[api/workspace] Failed to load workspace:", error);
-    return Response.json({ error: "Não foi possível carregar a carteira. Confira a conexão e o esquema do Neon." }, { status: 503 });
+    const databaseCode = getDatabaseErrorCode(error);
+    const diagnostic = databaseCode ? `NEON-${databaseCode}` : "NEON-UNKNOWN";
+    return Response.json({
+      error: "Não foi possível carregar a carteira. Confira a conexão e o esquema do Neon.",
+      diagnostic,
+    }, { status: 503 });
   }
+}
+
+function getDatabaseErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" && /^\d{5}$/.test(error.code) ? error.code : null;
 }

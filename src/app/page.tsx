@@ -184,9 +184,11 @@ export default function Home() {
     fetch("/api/workspace", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
-          const result = await response.json().catch(() => null) as { error?: unknown } | null;
+          const result = await response.json().catch(() => null) as { error?: unknown; diagnostic?: unknown } | null;
           if (active) {
-            setCloudError(typeof result?.error === "string" ? result.error : `Falha ao carregar a carteira (HTTP ${response.status}).`);
+            const errorMessage = typeof result?.error === "string" ? result.error : `Falha ao carregar a carteira (HTTP ${response.status}).`;
+            const diagnostic = typeof result?.diagnostic === "string" ? ` Código: ${result.diagnostic}.` : "";
+            setCloudError(`${errorMessage}${diagnostic}`);
           }
           return;
         }
